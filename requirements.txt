@@ -1,9 +1,0 @@
-streamlit==1.38.0
-pandas==2.2.2
-numpy==2.1.0
-requests==2.32.3
-python-dotenv==1.0.1
-openpyxl==3.1.5
-
-# OpenAI (pilih salah satu pola; ini contoh SDK "openai" modern)
-openai==1.51.0
