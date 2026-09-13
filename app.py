@@ -95,3 +95,5 @@ with tab2:
                 ans = answer_question(llm, st.session_state.fmea_df, q)
                 st.write(ans)
             st.session_state.chat_history.append(("assistant", ans))
+
+#raisa2025
