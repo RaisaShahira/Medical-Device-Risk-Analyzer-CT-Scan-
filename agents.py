@@ -1,150 +1,99 @@
 from llm import gpt_model_call
 import json
+from similarity_engine import FailureModeSimilarityEngine
+
+# =========================
+# Similarity Engine Global
+# =========================
+sim_engine = FailureModeSimilarityEngine("FMEACT.csv")
 
 
-# ===============================
+# =========================
 # Brainstorming Agent
-# ===============================
+# =========================
 class BrainstormingAgent:
     def __init__(self):
         self.prompt_template = """
-You are a biomedical risk analysis assistant specialized in performing
+You are a biomedical risk analysis assistant helping create and refine
 Failure Mode and Effects Analysis (FMEA) for a CT Scan medical imaging system.
 
-The CT Scan system includes hardware, software, electrical, mechanical,
-radiation safety, and operational components.
+All knowledge must be derived logically and based on patterns from the provided dataset.
 
-Here is the current FMEA table:
+Here is the user's FMEA table:
 {{fmea_table}}
 
-You are focusing on the FMEA field "{{dic_key_value}}" in row {{selected_row}}.
+Here are historically similar rows from the user's dataset (matched based on Failure Mode similarity):
+{{similar_rows}}
 
-The user is editing the field "{{dic}}" and has entered the following text:
+You are focusing on the field "{{dic_key_value}}" in row {{selected_row}}.
+User is currently editing "{{dic}}" and has typed:
 "{{user_text}}"
 
 Your task:
-- Help refine or expand this entry.
-- Brainstorm **5 alternative variants**, each addressing a different possible aspect
-  (e.g., hardware failure, software issue, human error, environmental condition, safety impact).
-- The output MUST be relevant to CT Scan systems.
+- Brainstorm 5 alternative options for this field.
+- Variants should reflect:
+  hardware / software / operator / environment / patient safety aspects
 
-IMPORTANT RULES:
-- ONLY generate content for TEXTUAL FMEA fields:
-  - Failure Mode
-  - Effects of Failure
-  - Potential Cause
-  - Current Controls
-  - Recommended Actions
-  - Responsible
-  - Actions Taken
-- DO NOT generate or infer Severity, Occurrence, Detection, or RPN values.
-- This is a decision-support tool, NOT a final authority.
+Rules:
+- Only textual FMEA fields
+- No Severity / Occurrence / Detection / RPN
+- JSON only
 
-Output MUST be valid JSON and strictly follow this template.
-Do NOT include explanations outside the JSON.
-
-Output template:
 {
-  "output": [
-    {"reason": "different_aspect", "content": "variant_text", "comment": "concise_explanation"},
-    {"reason": "different_aspect", "content": "variant_text", "comment": "concise_explanation"},
-    {"reason": "different_aspect", "content": "variant_text", "comment": "concise_explanation"},
-    {"reason": "different_aspect", "content": "variant_text", "comment": "concise_explanation"},
-    {"reason": "different_aspect", "content": "variant_text", "comment": "concise_explanation"}
-  ]
+ "output":[
+   {"reason":"","content":"","comment":""}
+ ]
 }
-
 Output:
 """
 
-    def generate_output(
-        self,
-        fmea_table,
-        dic_key_value,
-        selected_row,
-        user_text,
-        dic,
-        model="gpt-4.1-mini"
-    ):
-        prompt = self.prompt_template
-        prompt = prompt.replace("{{fmea_table}}", fmea_table)
-        prompt = prompt.replace("{{dic_key_value}}", dic_key_value)
-        prompt = prompt.replace("{{selected_row}}", str(selected_row))
-        prompt = prompt.replace("{{dic}}", dic)
-        prompt = prompt.replace("{{user_text}}", user_text)
 
-        print("***********************")
-        print("Brainstorming Agent running")
-        print("***********************")
-
-        try:
-            text_output = gpt_model_call(prompt, model=model)
-        except Exception as e:
-            print(f"LLM Error: {e}")
-            return None
-
-        try:
-            result_json = json.loads(text_output)
-        except json.JSONDecodeError as e:
-            print("JSON parsing failed:", e)
-            print(text_output)
-            return None
-
-        with open("brainstorming_agent_output.json", "w") as f:
-            json.dump(result_json, f, indent=4)
-
-        return result_json
-
-
-# ===============================
+# =========================
 # Completing Agent
-# ===============================
+# =========================
 class CompletingAgent:
     def __init__(self):
         self.prompt_template = """
 You are a biomedical risk analysis assistant supporting FMEA completion
-for a CT Scan medical imaging system.
+for a CT Scan system.
 
-Here is the current FMEA table:
+Current FMEA table:
 {{fmea_table}}
 
-You are focusing on the FMEA field "{{dic_key_value}}" in row {{selected_row}}.
+Historically similar dataset rows:
+{{similar_rows}}
 
-Your task:
-- Provide **3 alternative textual entries** for the field "{{dic}}".
-- Each alternative should reflect a different plausible aspect relevant to CT Scan systems.
+You are completing the field "{{dic_key_value}}" in row {{selected_row}}.
 
-IMPORTANT RULES:
-- ONLY generate TEXTUAL FMEA fields.
-- DO NOT generate Severity, Occurrence, Detection, or RPN.
-- Keep all outputs concise and professional.
-- Output MUST be valid JSON only.
+TASK:
+- Provide 3 realistic entries for "{{dic}}"
 
-Output template:
+Rules:
+- Only textual FMEA fields
+- No Severity / Occurrence / Detection / RPN
+- JSON output only
+
 {
-  "output": [
-    {"reason": "different_aspect", "content": "variant_text", "comment": "concise_explanation"},
-    {"reason": "different_aspect", "content": "variant_text", "comment": "concise_explanation"},
-    {"reason": "different_aspect", "content": "variant_text", "comment": "concise_explanation"}
-  ]
+ "output":[
+   {"reason":"","content":"","comment":""}
+ ]
 }
-
 Output:
 """
 
-    def generate_output(
-        self,
-        fmea_table,
-        dic_key_value,
-        selected_row,
-        dic,
-        model="gpt-4.1-mini"
-    ):
-        prompt = self.prompt_template
-        prompt = prompt.replace("{{fmea_table}}", fmea_table)
-        prompt = prompt.replace("{{dic_key_value}}", dic_key_value)
-        prompt = prompt.replace("{{selected_row}}", str(selected_row))
-        prompt = prompt.replace("{{dic}}", dic)
+    # -----------------------
+    # LLM Completing Mode
+    # -----------------------
+    def generate_output(self, fmea_table, dic_key_value,
+                        selected_row, dic, similar_rows,
+                        model="gpt-4.1-mini"):
+
+        prompt = self.prompt_template \
+            .replace("{{fmea_table}}", fmea_table) \
+            .replace("{{dic_key_value}}", dic_key_value) \
+            .replace("{{selected_row}}", str(selected_row)) \
+            .replace("{{dic}}", dic) \
+            .replace("{{similar_rows}}", similar_rows)
 
         print("***********************")
         print("Completing Agent running")
@@ -167,3 +116,42 @@ Output:
             json.dump(result_json, f, indent=4)
 
         return result_json
+
+
+    # -----------------------
+    # SIMILARITY MODE
+    # -----------------------
+    def completing_agent_with_similarity(self, query_failure_mode):
+
+        match = sim_engine.find_best_match(query_failure_mode)
+
+        if not match:
+            return {
+                "output":[
+                    {
+                        "reason":"no_match",
+                        "content":"No similar failure found",
+                        "comment":"Similarity score too low"
+                    }
+                ]
+            }
+
+        return {
+            "output":[
+                {
+                    "reason":"matched_failure_mode",
+                    "content": match.get("Failure Mode",""),
+                    "comment":"Auto suggested based on similarity score"
+                },
+                {
+                    "reason":"effects_reference",
+                    "content": match.get("Effects of Failure",""),
+                    "comment":"Pulled from dataset"
+                },
+                {
+                    "reason":"recommended_action_reference",
+                    "content": match.get("Recommended Actions",""),
+                    "comment":"Suggested mitigation"
+                }
+            ]
+        }
